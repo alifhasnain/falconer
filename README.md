@@ -6,21 +6,44 @@ on-device UI — method, URL, headers, bodies, timing, status — with search,
 JSON pretty-printing, image preview and cURL/text export.
 
 > **v1 is Android-only**, with an iOS-ready architecture (all capture and
-> redaction logic is pure Dart behind a platform interface). See
-> [`doc/PLAN.md`](doc/PLAN.md) for the phased roadmap.
+> redaction logic is pure Dart behind a platform interface).
 
 ## Status
 
-🚧 **Phase 0 — toolchain & scaffold.** The plugin registers its platform
-channel and answers a `ping`; capture, storage and the inspection UI land in
-later phases.
+**v0.1.0 — first development release.** Feature-complete on Android: capture,
+storage, the native inspection UI, search and export all work. The API is
+pre-1.0 and may change. iOS is not yet implemented.
+
+## Features
+
+- One-line setup: add `FalconerInterceptor` to any Dio client; multiple clients
+  share a single list.
+- Native Jetpack Compose inspector: transaction list, detail tabs
+  (overview / request / response) with swipe navigation.
+- In-body search with match highlighting, JSON pretty-printing, image preview.
+- Export a transaction as cURL or text, or save it to a `.txt` file.
+- Room-backed storage with configurable retention and a live transaction count.
+- Notification entry point that opens the inspector in its own task.
 
 ## Requirements
 
 - Flutter 3.35.4+ / Dart 3.9+
 - Android `minSdk 21`, `compileSdk 36`, Kotlin 2.1.x, Jetpack Compose
 
-## Usage (target API — not yet wired)
+## Install
+
+Not yet on pub.dev — add it as a git dependency:
+
+```yaml
+dependencies:
+  dio: ^5.7.0
+  falconer:
+    git:
+      url: https://github.com/alifhasnain/falconer.git
+      ref: v0.1.0   # or `main` to track the latest
+```
+
+## Usage
 
 ```dart
 import 'package:dio/dio.dart';
@@ -34,6 +57,9 @@ void main() {
 }
 ```
 
+Open the inspector by tapping the Falconer notification, or call
+`Falconer.launchUi()`.
+
 ## Security & data privacy
 
 Falconer persists captured HTTP data **on the device**.
@@ -45,13 +71,14 @@ Falconer persists captured HTTP data **on the device**.
   `X-Auth-Token` by default; secrets never reach native logs or the database.
 - **Do not capture cardholder data (PAN/CVV) or other regulated PII.** In
   payment/PCI-DSS contexts, exclude such endpoints from capture and keep
-  release capture disabled. Body-content redaction patterns are planned (see
-  `doc/PLAN.md`, "Out of scope").
+  release capture disabled. Body-content redaction patterns are not yet
+  implemented.
 
 ## Example
 
-See [`example/`](example/) — a minimal app that pings the platform channel.
-A full multi-Dio demo is added in Phase 9.
+See [`example/`](example/) — a demo app with two Dio clients sharing one list,
+configuration with header redaction, and buttons that exercise JSON / form /
+image / error / slow requests.
 
 ## License
 
