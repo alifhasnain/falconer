@@ -35,6 +35,10 @@ jobs:
           channel: stable
       - run: flutter pub get
         working-directory: example
+      # settings.gradle.kts requires flutter.sdk from local.properties (gitignored).
+      - name: Write local.properties
+        working-directory: example/android
+        run: echo "flutter.sdk=$FLUTTER_ROOT" > local.properties
       - run: ./gradlew :falconer:testDebugUnitTest
         working-directory: example/android
 
@@ -53,6 +57,10 @@ jobs:
           channel: stable
       - run: flutter pub get
         working-directory: example
+      # settings.gradle.kts requires flutter.sdk from local.properties (gitignored).
+      - name: Write local.properties
+        working-directory: example/android
+        run: echo "flutter.sdk=$FLUTTER_ROOT" > local.properties
       - name: Run connected Android tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
