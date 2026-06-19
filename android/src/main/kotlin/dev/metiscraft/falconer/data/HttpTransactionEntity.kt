@@ -1,19 +1,16 @@
 package dev.metiscraft.falconer.data
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
-
 /**
  * One captured HTTP transaction (request merged with its response or error).
  *
- * Headers are stored as JSON strings (see [Converters]); the response image is
- * a BLOB in the row (D5), hard-capped by `maxContentLength` in Phase 7.
- * Numeric/text fields are stored natively, so no Room type converters are
- * registered on the database.
+ * Plain domain model — the persistence seam. SQLDelight generates its own row
+ * type from `Transactions.sq`; [SqlDelightHttpTransactionDao] maps that row to
+ * this class so callers never depend on generated code. Headers are stored as
+ * JSON strings (see [Converters]); the response image is a BLOB in the row (D5),
+ * hard-capped by `maxContentLength` in Phase 7.
  */
-@Entity(tableName = "transactions")
 data class HttpTransactionEntity(
-    @PrimaryKey val id: String,
+    val id: String,
     val startedAt: Long,
     val completedAt: Long?,
     val tookMs: Long?,
