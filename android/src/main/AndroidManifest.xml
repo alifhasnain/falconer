@@ -1,0 +1,28 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application>
+        <activity
+            android:name=".ui.FalconerActivity"
+            android:taskAffinity="dev.metiscraft.falconer"
+            android:launchMode="singleTask"
+            android:exported="false"
+            android:label="Falconer"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+
+        <receiver
+            android:name=".notification.FalconerClearReceiver"
+            android:exported="false" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.falconer.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/falconer_file_paths" />
+        </provider>
+    </application>
+</manifest>

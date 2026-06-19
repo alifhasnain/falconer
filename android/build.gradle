@@ -1,0 +1,120 @@
+group = "dev.metiscraft.falconer"
+version = "1.0-SNAPSHOT"
+
+buildscript {
+    ext.kotlin_version = "2.1.0"
+    ext.room_version = "2.6.1"
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.9.1")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version")
+        // Standalone Compose Compiler Gradle plugin (Kotlin 2.0+). Its version MUST
+        // equal the Kotlin version. This replaces the legacy composeOptions{} block.
+        classpath("org.jetbrains.kotlin:compose-compiler-gradle-plugin:$kotlin_version")
+        // KSP — runs the Room annotation processor. Version pins the Kotlin version.
+        classpath("com.google.devtools.ksp:symbol-processing-gradle-plugin:2.1.0-1.0.29")
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+apply plugin: "com.android.library"
+apply plugin: "kotlin-android"
+// Compose compiler is configured by this plugin alone — do NOT add a composeOptions{} block.
+apply plugin: "org.jetbrains.kotlin.plugin.compose"
+apply plugin: "com.google.devtools.ksp"
+
+android {
+    namespace = "dev.metiscraft.falconer"
+
+    compileSdk = 36
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    buildFeatures {
+        compose = true
+    }
+
+    sourceSets {
+        main.java.srcDirs += "src/main/kotlin"
+        test.java.srcDirs += "src/test/kotlin"
+        androidTest.java.srcDirs += "src/androidTest/kotlin"
+    }
+
+    defaultConfig {
+        minSdk = 21
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    dependencies {
+        // Compose BOM — single source of truth for Compose artifact versions.
+        implementation platform("androidx.compose:compose-bom:2024.09.02")
+        implementation "androidx.compose.runtime:runtime"
+        // Compose inspection UI (Phase 5).
+        implementation "androidx.compose.ui:ui"
+        implementation "androidx.compose.ui:ui-graphics"
+        implementation "androidx.compose.material3:material3"
+        implementation "androidx.compose.material:material-icons-core"
+        implementation "androidx.core:core-ktx:1.13.1"
+        implementation "androidx.activity:activity-compose:1.9.3"
+        implementation "androidx.navigation:navigation-compose:2.8.4"
+        implementation "androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7"
+        implementation "androidx.lifecycle:lifecycle-runtime-compose:2.8.7"
+
+        // Room (D5: image BLOB in the row) + coroutines/Flow.
+        implementation "androidx.room:room-runtime:$room_version"
+        implementation "androidx.room:room-ktx:$room_version"
+        ksp "androidx.room:room-compiler:$room_version"
+
+        implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0"
+        // JSON for the headers Map<->String converter (pure-JVM, unit-test safe).
+        implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3"
+
+        testImplementation("org.jetbrains.kotlin:kotlin-test")
+        testImplementation("org.mockito:mockito-core:5.0.0")
+        testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+
+        // Instrumented tests (Phase 10) — require a device/emulator to run.
+        androidTestImplementation("androidx.test.ext:junit:1.2.1")
+        androidTestImplementation("androidx.test:runner:1.6.2")
+        androidTestImplementation("androidx.test:core-ktx:1.6.1")
+        androidTestImplementation("androidx.room:room-testing:$room_version")
+        androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+        androidTestImplementation(platform("androidx.compose:compose-bom:2024.09.02"))
+        androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+        debugImplementation("androidx.compose.ui:ui-test-manifest")
+    }
+
+    testOptions {
+        unitTests.all {
+            useJUnitPlatform()
+
+            testLogging {
+               events "passed", "skipped", "failed", "standardOut", "standardError"
+               outputs.upToDateWhen {false}
+               showStandardStreams = true
+            }
+        }
+    }
+}
+
+// Export the Room schema to support future migration tests (scaffolding).
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
