@@ -5,7 +5,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import app.cash.sqldelight.driver.android.AndroidSqliteDriver
@@ -50,9 +49,14 @@ class ComposeUiTest {
         rule.onNodeWithText("/users").assertIsDisplayed()
         rule.onNodeWithText("/posts").assertIsDisplayed()
 
-        rule.onNodeWithText("Search url, request, response").performTextInput("posts")
+        // Drive the filter through the VM instead of typing into the field. Focusing the
+        // OutlinedTextField starts the blinking-cursor animation — an infinite animation
+        // that makes waitForIdle()/auto-sync chase frames forever under the test clock,
+        // hanging the test until CI cancels it. setQuery exercises the same filter path.
+        vm.setQuery("posts")
         rule.waitForIdle()
         rule.onNodeWithText("/posts").assertIsDisplayed()
+        rule.onNodeWithText("/users").assertDoesNotExist()
     }
 
     @Test
