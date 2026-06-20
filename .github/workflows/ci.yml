@@ -45,8 +45,17 @@ jobs:
   android-instrumented:
     name: Instrumented tests (emulator API 34)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      # Grant the runner user access to /dev/kvm so the emulator gets hardware
+      # acceleration. Without this, android-emulator-runner falls back to
+      # swiftshader software rendering and boot hangs (the job ran ~6h once).
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
