@@ -34,6 +34,21 @@ apply plugin: "kotlin-android"
 apply plugin: "org.jetbrains.kotlin.plugin.compose"
 apply plugin: "app.cash.sqldelight"
 
+// SQLDelight 2.2.1 transitively pulls kotlin-stdlib 2.2.21, which conflict-resolution
+// then forces onto the whole graph — newer than our pinned Kotlin 2.1.0 compiler. The
+// resulting Kotlin 2.2 metadata can't be rewritten by any R8/D8 pairable with AGP 8.9.1
+// (8.9.32 / 8.11.32 / 8.13.19 all throw "Should never be called" on kotlin.uuid.* and
+// kotlin.time.* — ~1016 stack traces that flood the log and hang mergeExtDex on CI).
+// Pin the stdlib down to match the compiler so the dexed metadata stays at 2.1.
+configurations.all {
+    resolutionStrategy {
+        force "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+        force "org.jetbrains.kotlin:kotlin-stdlib-common:$kotlin_version"
+        force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+        force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+    }
+}
+
 android {
     namespace = "dev.metiscraft.falconer"
 
