@@ -76,6 +76,10 @@ android {
     defaultConfig {
         minSdk = 21
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Per-test timeout: a hung instrumented test fails (with a thread dump
+        // pinpointing the stuck call) instead of stalling the whole emulator job
+        // until the CI timeout. Keeps connectedDebugAndroidTest debuggable.
+        testInstrumentationRunnerArguments timeout_msec: '120000'
     }
 
     dependencies {
