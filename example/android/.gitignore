@@ -1,8 +1,7 @@
-gradle-wrapper.jar
+# Gradle wrapper is committed so CI (and fresh clones) can run ./gradlew —
+# the plugin has no root gradle; example/android hosts the build.
 /.gradle
 /captures/
-/gradlew
-/gradlew.bat
 /local.properties
 GeneratedPluginRegistrant.java
 .cxx/

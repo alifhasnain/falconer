@@ -1,24 +1,23 @@
 package dev.metiscraft.falconer.data
 
 import android.content.Context
-import androidx.room.Database
-import androidx.room.Room
-import androidx.room.RoomDatabase
+import app.cash.sqldelight.db.SqlDriver
+import app.cash.sqldelight.driver.android.AndroidSqliteDriver
 
 /**
  * The on-device store for captured transactions.
  *
- * Schema export is enabled in Phase 10 alongside migration scaffolding; v1 is
- * a single-version, single-table database.
+ * Wraps the SQLDelight-generated [FalconerDb] and exposes a single
+ * [HttpTransactionDao] so callers (plugin, UI, receivers) stay decoupled from
+ * generated code. v1 is a single-version, single-table database; SQLDelight
+ * verifies the schema and any future `.sqm` migrations at build time.
  */
-@Database(
-    entities = [HttpTransactionEntity::class],
-    version = 1,
-    exportSchema = true,
-)
-abstract class FalconerDatabase : RoomDatabase() {
+class FalconerDatabase private constructor(driver: SqlDriver) {
 
-    abstract fun transactionDao(): HttpTransactionDao
+    private val dao: HttpTransactionDao =
+        SqlDelightHttpTransactionDao(FalconerDb(driver).transactionsQueries)
+
+    fun transactionDao(): HttpTransactionDao = dao
 
     companion object {
         @Volatile
@@ -26,11 +25,13 @@ abstract class FalconerDatabase : RoomDatabase() {
 
         fun get(context: Context): FalconerDatabase =
             instance ?: synchronized(this) {
-                instance ?: Room.databaseBuilder(
-                    context.applicationContext,
-                    FalconerDatabase::class.java,
-                    "falconer.db",
-                ).build().also { instance = it }
+                instance ?: FalconerDatabase(
+                    AndroidSqliteDriver(
+                        schema = FalconerDb.Schema,
+                        context = context.applicationContext,
+                        name = "falconer.db",
+                    ),
+                ).also { instance = it }
             }
     }
 }

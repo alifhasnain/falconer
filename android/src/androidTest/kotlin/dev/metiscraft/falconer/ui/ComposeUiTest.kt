@@ -5,11 +5,12 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performTextInput
-import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import dev.metiscraft.falconer.data.FalconerDatabase
+import app.cash.sqldelight.driver.android.AndroidSqliteDriver
+import dev.metiscraft.falconer.data.FalconerDb
+import dev.metiscraft.falconer.data.HttpTransactionDao
+import dev.metiscraft.falconer.data.SqlDelightHttpTransactionDao
 import dev.metiscraft.falconer.data.testEntity
 import dev.metiscraft.falconer.ui.detail.BodySection
 import dev.metiscraft.falconer.ui.list.TransactionListScreen
@@ -27,32 +28,35 @@ class ComposeUiTest {
     @get:Rule
     val rule = createComposeRule()
 
-    private fun inMemoryDb(): FalconerDatabase {
+    // In-memory SQLite (name = null) on the device, behind the production DAO.
+    private fun inMemoryDao(): HttpTransactionDao {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        return Room.inMemoryDatabaseBuilder(context, FalconerDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
+        val driver = AndroidSqliteDriver(FalconerDb.Schema, context.applicationContext, name = null)
+        return SqlDelightHttpTransactionDao(FalconerDb(driver).transactionsQueries)
     }
 
     @Test
     fun list_rendersSeededTransactionAndFilters() {
-        val db = inMemoryDb()
+        val dao = inMemoryDao()
         runBlocking {
-            db.transactionDao().insert(testEntity("a", path = "/users", url = "https://x/users"))
-            db.transactionDao().insert(testEntity("b", path = "/posts", url = "https://x/posts"))
+            dao.insert(testEntity("a", path = "/users", url = "https://x/users"))
+            dao.insert(testEntity("b", path = "/posts", url = "https://x/posts"))
         }
-        val vm = TransactionListViewModel(db.transactionDao())
+        val vm = TransactionListViewModel(dao)
 
         rule.setContent { FalconerTheme { TransactionListScreen(vm, onOpen = {}) } }
 
         rule.onNodeWithText("/users").assertIsDisplayed()
         rule.onNodeWithText("/posts").assertIsDisplayed()
 
-        rule.onNodeWithText("Search url, request, response").performTextInput("posts")
+        // Drive the filter through the VM instead of typing into the field. Focusing the
+        // OutlinedTextField starts the blinking-cursor animation — an infinite animation
+        // that makes waitForIdle()/auto-sync chase frames forever under the test clock,
+        // hanging the test until CI cancels it. setQuery exercises the same filter path.
+        vm.setQuery("posts")
         rule.waitForIdle()
         rule.onNodeWithText("/posts").assertIsDisplayed()
-
-        db.close()
+        rule.onNodeWithText("/users").assertDoesNotExist()
     }
 
     @Test

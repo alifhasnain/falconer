@@ -3,7 +3,7 @@ version = "1.0-SNAPSHOT"
 
 buildscript {
     ext.kotlin_version = "2.1.0"
-    ext.room_version = "2.6.1"
+    ext.sqldelight_version = "2.2.1"
     repositories {
         google()
         mavenCentral()
@@ -15,8 +15,9 @@ buildscript {
         // Standalone Compose Compiler Gradle plugin (Kotlin 2.0+). Its version MUST
         // equal the Kotlin version. This replaces the legacy composeOptions{} block.
         classpath("org.jetbrains.kotlin:compose-compiler-gradle-plugin:$kotlin_version")
-        // KSP — runs the Room annotation processor. Version pins the Kotlin version.
-        classpath("com.google.devtools.ksp:symbol-processing-gradle-plugin:2.1.0-1.0.29")
+        // SQLDelight — generates type-safe DB code from .sq files via a Gradle task
+        // (no KSP/kapt, so no cross-drive relativeTo crash on Windows).
+        classpath("app.cash.sqldelight:gradle-plugin:$sqldelight_version")
     }
 }
 
@@ -31,7 +32,22 @@ apply plugin: "com.android.library"
 apply plugin: "kotlin-android"
 // Compose compiler is configured by this plugin alone — do NOT add a composeOptions{} block.
 apply plugin: "org.jetbrains.kotlin.plugin.compose"
-apply plugin: "com.google.devtools.ksp"
+apply plugin: "app.cash.sqldelight"
+
+// SQLDelight 2.2.1 transitively pulls kotlin-stdlib 2.2.21, which conflict-resolution
+// then forces onto the whole graph — newer than our pinned Kotlin 2.1.0 compiler. The
+// resulting Kotlin 2.2 metadata can't be rewritten by any R8/D8 pairable with AGP 8.9.1
+// (8.9.32 / 8.11.32 / 8.13.19 all throw "Should never be called" on kotlin.uuid.* and
+// kotlin.time.* — ~1016 stack traces that flood the log and hang mergeExtDex on CI).
+// Pin the stdlib down to match the compiler so the dexed metadata stays at 2.1.
+configurations.all {
+    resolutionStrategy {
+        force "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+        force "org.jetbrains.kotlin:kotlin-stdlib-common:$kotlin_version"
+        force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+        force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+    }
+}
 
 android {
     namespace = "dev.metiscraft.falconer"
@@ -60,6 +76,10 @@ android {
     defaultConfig {
         minSdk = 21
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Per-test timeout: a hung instrumented test fails (with a thread dump
+        // pinpointing the stuck call) instead of stalling the whole emulator job
+        // until the CI timeout. Keeps connectedDebugAndroidTest debuggable.
+        testInstrumentationRunnerArguments timeout_msec: '120000'
     }
 
     dependencies {
@@ -77,10 +97,9 @@ android {
         implementation "androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7"
         implementation "androidx.lifecycle:lifecycle-runtime-compose:2.8.7"
 
-        // Room (D5: image BLOB in the row) + coroutines/Flow.
-        implementation "androidx.room:room-runtime:$room_version"
-        implementation "androidx.room:room-ktx:$room_version"
-        ksp "androidx.room:room-compiler:$room_version"
+        // SQLDelight (D5: image BLOB in the row) + coroutines/Flow.
+        implementation "app.cash.sqldelight:android-driver:$sqldelight_version"
+        implementation "app.cash.sqldelight:coroutines-extensions:$sqldelight_version"
 
         implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0"
         // JSON for the headers Map<->String converter (pure-JVM, unit-test safe).
@@ -89,12 +108,22 @@ android {
         testImplementation("org.jetbrains.kotlin:kotlin-test")
         testImplementation("org.mockito:mockito-core:5.0.0")
         testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+        // SQLDelight JVM driver — runs the real SQLite engine in pure-JVM unit tests
+        // (the DAO test no longer needs a device/emulator).
+        testImplementation("app.cash.sqldelight:sqlite-driver:$sqldelight_version")
+        testImplementation("app.cash.sqldelight:coroutines-extensions:$sqldelight_version")
 
         // Instrumented tests (Phase 10) — require a device/emulator to run.
-        androidTestImplementation("androidx.test.ext:junit:1.2.1")
-        androidTestImplementation("androidx.test:runner:1.6.2")
-        androidTestImplementation("androidx.test:core-ktx:1.6.1")
-        androidTestImplementation("androidx.room:room-testing:$room_version")
+        // AndroidX test stack kept in lockstep with Espresso 3.7.0 (they ship
+        // together). The transitive default is Espresso 3.5.0 + core/runner 1.6.x,
+        // which calls the reflective android.hardware.input.InputManager.getInstance()
+        // dropped in API 34 (Android 14) -> NoSuchMethodException in Espresso.onIdle()
+        // (which every Compose assertion routes through): crashes on API 36, stalls
+        // forever on API 34. Bumping the whole stack together fixes and avoids skew.
+        androidTestImplementation("androidx.test.ext:junit:1.3.0")
+        androidTestImplementation("androidx.test:runner:1.7.0")
+        androidTestImplementation("androidx.test:core-ktx:1.7.0")
+        androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
         androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
         androidTestImplementation(platform("androidx.compose:compose-bom:2024.09.02"))
         androidTestImplementation("androidx.compose.ui:ui-test-junit4")
@@ -114,7 +143,14 @@ android {
     }
 }
 
-// Export the Room schema to support future migration tests (scaffolding).
-ksp {
-    arg("room.schemaLocation", "$projectDir/schemas")
+// SQLDelight code generation. SQL is validated against the schema at build time
+// (replaces Room's KSP @Query check); migration verification + schema export are
+// built into the Gradle plugin (replaces the Room KSP schema export).
+sqldelight {
+    databases {
+        create("FalconerDb") {
+            packageName = "dev.metiscraft.falconer.data"
+            schemaOutputDirectory = file("$projectDir/sqldelight-schemas")
+        }
+    }
 }
