@@ -45,7 +45,7 @@ jobs:
   android-instrumented:
     name: Instrumented tests (emulator API 34)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       # Grant the runner user access to /dev/kvm so the emulator gets hardware
@@ -76,7 +76,19 @@ jobs:
           api-level: 34
           arch: x86_64
           working-directory: example/android
-          script: ./gradlew :falconer:connectedDebugAndroidTest
+          # DIAGNOSTIC: run each instrumented test in isolation so the hang
+          # pins to one method. The invocation that stalls (no "BUILD
+          # SUCCESSFUL" after it) is the culprit; earlier ones print success.
+          # Revert to a single `:falconer:connectedDebugAndroidTest` once found.
+          script: |
+            echo "=== T1 bodySection_marksEmptyBody ==="
+            ./gradlew :falconer:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=dev.metiscraft.falconer.ui.ComposeUiTest#bodySection_marksEmptyBody
+            echo "=== T2 bodySection_showsJsonText ==="
+            ./gradlew :falconer:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=dev.metiscraft.falconer.ui.ComposeUiTest#bodySection_showsJsonText
+            echo "=== T3 list_rendersSeededTransactionAndFilters ==="
+            ./gradlew :falconer:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=dev.metiscraft.falconer.ui.ComposeUiTest#list_rendersSeededTransactionAndFilters
+            echo "=== T4 NotificationInstrumentedTest ==="
+            ./gradlew :falconer:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=dev.metiscraft.falconer.notification.NotificationInstrumentedTest
 
   pana:
     name: pub score (pana)
